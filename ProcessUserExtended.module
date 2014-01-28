@@ -95,7 +95,7 @@ class ProcessUserExtended extends ProcessUser {
 		return $this->renderList("limit=25, status<" . Page::statusMax); 
 	}
 	
-	protected function renderList($selector, $pagerOptions = null) {
+	protected function renderList($selector = '', $pagerOptions = array()) {
 		$out = '';
 
 		if(!$this->pages->getTemplate()) {
