@@ -28,7 +28,7 @@ class ProcessUserExtended extends ProcessUser {
 		$selector = $form ? $this->getFilterSelector() : null;
 
         if ($this->input->whitelist('search')) {
-            $directHit = $this->pages->get("name=" . $this->input->whitelist('search'));
+            $directHit = $this->users->get("name=" . $this->input->whitelist('search'));
             if ($directHit->id) $out .= "<h3>". $this->_('Found by username') .": <a href='./edit/?id=$directHit->id'>$directHit->name</a></h3>";
         }
 
@@ -150,7 +150,7 @@ class ProcessUserExtended extends ProcessUser {
 		}
 
 		$table->headerRow($fieldLabels); 
-		$pages = $this->pages->find($selector); 
+		$pages = $this->users->find($selector);
 
 		foreach($pages as $page) {
 			if(!$page->editable()) continue; 
