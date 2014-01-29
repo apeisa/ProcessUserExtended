@@ -5,7 +5,7 @@ class ProcessUserExtended extends ProcessUser {
   static public function getModuleInfo() {
 		return array(
 			'title' => __('Users extended', __FILE__), // getModuleInfo title
-			'version' => 100, 
+			'version' => 101,
 			'summary' => __('Extended view for user management', __FILE__), // getModuleInfo summary
 			'permanent' => false, 
 			'permission' => 'user-admin',
@@ -16,11 +16,38 @@ class ProcessUserExtended extends ProcessUser {
 	
 		$out = '';
 
-		$wrapper = new InputfieldWrapper;
+		// Grab filter form
+		$form = $this->getFilterForm();
+		if ($form instanceof InputfieldFieldset || $form instanceof InputfieldForm) {
+			$out .= $form->render();
+		} else if ($form) {
+			$out .= $form;
+		}
+
+		// Build filter selector (if filter form exists)
+		$selector = $form ? $this->getFilterSelector() : null;
+
+        if ($this->input->whitelist('search')) {
+            $directHit = $this->users->get("name=" . $this->input->whitelist('search'));
+            if ($directHit->id) $out .= "<h3>". $this->_('Found by username') .": <a href='./edit/?id=$directHit->id'>$directHit->name</a></h3>";
+        }
+
+		return $out . $this->renderList($selector, array("arrayToCSV" => false));
 		
+	}
+	
+	/**
+	 * Build filter forms for execute method
+	 *
+	 * This being a method of it's own helps us both keep this separate from
+	 * main execute method, but also makes it possible for external code to
+	 * alter return value (add/remove fields etc.) based on their needs.
+	 *
+	 * @return mixed InputfieldFieldset by default, but can be altered by hooks
+	 */
+	public function ___getFilterForm() {
 		
 		$fields = $this->modules->get("InputfieldFieldset");
-		
 		
 		$form = $this->modules->get("InputfieldForm");
 		$form->attr('method', 'get');
@@ -30,15 +57,13 @@ class ProcessUserExtended extends ProcessUser {
 			$form->collapsed = Inputfield::collapsedYes;
 		}
 		
-		
 		$field = $this->modules->get("InputfieldText");
 		$field->attr('name', 'search');
 		$field->label = $this->_("Search");
 		if ($this->input->get->search) {
-			$this->input->whitelist('search', $this->input->get->search);
-			$field->attr('value', htmlentities($this->input->get->search, ENT_QUOTES, 'UTF-8'));
+			$this->input->whitelist('search', $this->sanitizer->text($this->input->get->search));
+			$field->attr('value', $this->input->whitelist('search'));
 		}
-		
 		$form->add($field);
 		
 		$field = $this->modules->get("InputfieldCheckboxes");
@@ -51,14 +76,11 @@ class ProcessUserExtended extends ProcessUser {
 			if (is_array($this->input->get->roles)) {
 				if(in_array($role->name, $this->input->get->roles)) {
 					$attrs['selected'] = 'selected';
-					
 				}
 			}
 			$field->addOption($role->name, $role->get('title|name'), $attrs);
 		}
 		$field->label = $this->_("Filter by role");
-		
-		
 		$form->add($field);
 		
 		$field = $this->modules->get("InputfieldSubmit");
@@ -67,27 +89,33 @@ class ProcessUserExtended extends ProcessUser {
 		
 		$fields->add($form);
 		
-		$out .= $fields->render();
+		return $fields;
 		
+	}
+	
+	/**
+	 * Build selector for execute method
+	 *
+	 * @return string selector string
+	 */
+	public function ___getFilterSelector() {
+
 		$selector = "limit=25, status<" . Page::statusMax;
-		
 		
 		if ($this->input->get->roles) {
 			$roles = new PageArray;
 			foreach($this->input->get->roles as $roleName) {
-				$roles->add($this->roles->get($roleName));
+				$role = $this->roles->get($roleName);
+				if ($role->id) $roles->add($role);
 			}
-			if ($role->id) $selector .= ", roles=$roles";
+			if ($roles->count()) $selector .= ", roles=$roles";
 		}
 		if ($this->input->get->search) {
-			$fieldNames = implode("|", array_diff($this->showFields, array('name', 'created', 'modified', 'roles')));
 			$search = $this->sanitizer->selectorValue($this->input->get->search);
-			$directHit = $this->pages->get("name=$search");
-			if ($directHit->id) $out .= "<h3>". $this->_('Found by username') .": <a href='./edit/?id=$directHit->id'>$directHit->name</a></h3>";
-			$selector .= ", $fieldNames^=$search";
+			$selector .= ", name|title%=$search";
 		}
 		
-		return $out . $this->renderList($selector, array("arrayToCSV" => false));
+		return $selector;
 		
 	}
 	
@@ -95,7 +123,7 @@ class ProcessUserExtended extends ProcessUser {
 		return $this->renderList("limit=25, status<" . Page::statusMax); 
 	}
 	
-	protected function renderList($selector, $pagerOptions = null) {
+	protected function renderList($selector = '', $pagerOptions = array()) {
 		$out = '';
 
 		if(!$this->pages->getTemplate()) {
@@ -122,7 +150,7 @@ class ProcessUserExtended extends ProcessUser {
 		}
 
 		$table->headerRow($fieldLabels); 
-		$pages = $this->pages->find($selector); 
+		$pages = $this->users->find($selector);
 
 		foreach($pages as $page) {
 			if(!$page->editable()) continue; 
